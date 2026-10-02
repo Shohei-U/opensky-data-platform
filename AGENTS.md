@@ -1,0 +1,78 @@
+# AGENTS.md
+
+OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuery → dbt でフライト単位に集計する個人のデータ基盤。GCP 無料枠内で運用する。
+
+## 計画とローカル環境
+
+- 12週間の計画（ロードマップ・コスト設計・資格との並走）は本人の手元にあり、リポジトリには置かない
+- この Mac の環境・アカウントの分け方は `AGENTS.local.md`（git の管理外）にある。gh・gcloud・git の操作前に読む
+- 設計の経緯は `docs/adr/`、週ごとの学びは `docs/learning/`
+
+## 作業ルール
+
+- 設計判断は本人が決めて `docs/adr/` に残す。エージェントは設計決定後の実装を担当し、判断材料（選択肢・実測値）を出す
+- コードと定型の git / GitHub 操作（Issue・ブランチ・commit・push・PR 作成）はエージェントが行う。アカウント作成・課金設定・クラウドへの変更は本人が実行する（コマンドの意味を説明してから）
+- GCP 無料枠を守る: リージョンは `us-central1` 固定、Cloud Logging にデバッグログを垂れ流さない、BigQuery に生データを長期保持しない、`SELECT *` をマートに向けない、Cloud Run は Jobs のみ（Service を常時起動しない）、Composer / Data Fusion は起動しない
+- GCP を有料アカウントへアップグレードしない、$300 クレジットは使わない（トライアル終了時の扱いは要確認: https://cloud.google.com/free）
+- 認証情報はリポジトリに置かない（`.gitignore` 済み）。OpenSky は `~/.config/opensky/credentials.json` または環境変数 `OPENSKY_CLIENT_ID` / `OPENSKY_CLIENT_SECRET`
+- 顧客・社内データ・社内コードは持ち込まない
+- commit / push 前にセキュリティスキャン（credentials 混入チェック）を行う
+- 危険な操作（gcloud・merge・terraform・bq・認証情報の読み取り）の ask / deny は `.claude/settings.json` に定義している。ルールを緩める変更は本人が判断する
+- 1タスク = 1PR（詳細は「開発フロー」）。日次メモは `notes/YYYY-MM-DD.md` に1行
+
+## 現在の状態（2026-10-02 時点・第2週）
+
+```
+① 取り込み  ✅ #7 繰り返し取得 ✅ #8 リトライ ✅ #9 GCS へ書く ✅ #10 コンテナ化・Cloud Run（遮断が判明）
+            ▶ GitHub Actions での定期実行に切り替え中（ADR 0003）
+② 蓄積 BigQuery（第3週） → ③ 変換 dbt（第4〜5週） → ④ 提供 Looker Studio（第6週） → ⑤ 運用（第7〜12週）
+```
+
+- ADR 0001: 沖縄周辺（24–28N, 123–129E）、5分ごとに起動して30秒間隔×10回取得（1クレジット/回）
+- ADR 0002: Cloud Run Job 用サービスアカウント `opensky-ingest` にバケット単位の objectUser、認証情報は Secret Manager の `opensky-credentials`（JSON 1つ）
+- ADR 0003: GCP の IP は OpenSky に遮断される（Cloud Run・Cloud Shell とも接続不可、GitHub Actions は接続可）。取得は GitHub Actions の schedule で動かし、リポジトリを Public にする。GCS へは Workload Identity Federation で認証する
+- GCP: プロジェクト `opensky-data-platform`（無料トライアル中、期限 2026-12-29、アップグレードしない）、予算アラート 月500円（20/60/100%、クレジットを差し引かない）
+- GCS: `gs://opensky-data-platform-raw`（us-central1）。`raw/` と `meta/` は `dt=YYYY-MM-DD/hh=HH/<5分枠>.jsonl(.gz)`。試しの書き込みは `dev/` の下
+- #10 で作ったもの（残してある。実行しなければ費用はほぼ0）: Artifact Registry `opensky`（イメージ `ingest`、最新2つだけ残す）、Cloud Run Job `opensky-ingest`、Secret `opensky-credentials`、サービスアカウント `opensky-ingest`。手順は `docs/runbook/cloud-run-job.md`
+- CI: `.github/workflows/ci.yml`（PR と main への push で ruff・pytest）
+- 権限ルール: `.claude/settings.json`（gcloud・terraform apply・bq は ask、削除・課金系は deny）
+
+次にやること:
+
+- Workload Identity Federation の設定（本人が gcloud）→ 5分ごとの取得ワークフロー（エージェント）→ 動作確認 → Public 化
+- 失敗時のログも1行の JSON にする（`fetch_token` のリトライを含む）
+- 第3週: GCS → BigQuery。ロードと dbt の実行場所（GitHub Actions か Cloud Run Jobs か）を決める
+
+未解決:
+
+- クレジットが戻るタイミング（UTC 0時では戻らなかった。直近24時間の積算か未確認）
+- トライアル終了後（2026-12-29 以降）にアップグレードなしで無料枠を使い続けられるか
+- GCS の書き込み回数の無料枠（月 5,000 回と記憶、未確認）。5分ごとに2ファイルで月約1.7万回になる
+- Secret Manager の無料枠の数値（ADR 0002 の前提、未確認）
+- 地上機（`on_ground=true`）が見えていない。離着陸は高度の変化で判定する方針（第6週）
+
+## 開発フロー（個人開発の GitHub Flow）
+
+手順は `gh-flow` スキルに従う。以下はこのリポジトリの規約で、スキルの既定値より優先する。
+
+- 管理: GitHub Projects https://github.com/users/Shohei-U/projects/1 、マイルストーン `Week N`。ボードのステータスは `scripts/board.sh <Issue番号> "In Progress"`
+- main には PR 経由でしか入れない（main へ直接 push しない）。ブランチは短命（1〜2日で merge）、関係のない変更は別ブランチに分ける
+- Issue は追跡したい作業（機能・設計・ADR）だけ作る。小さな整備（設定・ドキュメント・誤字）は Issue なしで PR にするか、次の PR にまとめる
+- ブランチ名 `<Issue番号>-<kebab要約>`（Issue なしは `chore-<要約>` など）。PR 本文は「何を・なぜ・どう確認したか」と `Closes #番号`。squash merge、merge 後はブランチを削除
+- commit: Conventional Commits `<type>(<scope>): <要約> (#番号)`
+- Issue タイトルは内容をそのまま書く（`[対象]` は付けない）。ラベルは `human`（本人作業）/ `agent`（エージェント実装）/ `adr`（設計判断）
+- リポジトリを変えない Issue（アカウント作成・クラウド設定など）はブランチを切らず、結果を Issue にコメントして閉じる
+- 役割: git / GitHub の手続き（Issue・ボード・ブランチ・commit・push・PR・merge・ブランチ削除）はすべてエージェントが行い、報告では省く。merge は `gh pr checks` が全て成功してから。本人は技術の理解と実装、設計判断、クラウド操作の確認に集中する
+- 実装はエージェントが書き、何をしているかを随時説明する（本人はコードを書かない）: ① 今回の技術テーマを短く説明（なぜ必要か・仕組み・ADP との対応）→ ② 実装しながら、判断が入る箇所は理由を説明 → ③ 実際に動かして挙動を見せる → ④ 報告は「何を学べるか」を中心にする。本人への確認は設計判断とクラウド操作だけ
+- #9 以降と BigQuery・dbt は、設計を本人が決めて ADR に残し、gcloud は意味を説明してから本人が実行する。実装した週に ADP 試験ガイドの該当範囲を読む
+- Public にしたら main のブランチ保護（PR 必須・CI 必須）を設定する
+
+## よく使うコマンド
+
+```bash
+uv run --project ingestion pytest ingestion              # テスト
+uv run --project ingestion ruff check ingestion           # lint
+uv run --project ingestion python -m opensky_ingest.cli   # 30秒間隔×10回取得 → data/raw/, data/meta/（--dest gs://opensky-data-platform-raw で GCS）
+```
+
+`data/` は `.gitignore` 済み（生データは GCS に置く）。

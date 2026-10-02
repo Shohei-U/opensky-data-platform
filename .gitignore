@@ -1,0 +1,29 @@
+# secrets
+credentials*.json
+*.key.json
+.env
+.env.*
+
+# local data (raw output goes to GCS)
+data/
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+
+.DS_Store
+
+# claude code (local only)
+.claude/settings.local.json
+
+# agent notes about this machine (not for the public repo)
+AGENTS.local.md

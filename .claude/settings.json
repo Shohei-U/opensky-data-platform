@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(gcloud *)",
+      "Bash(gh pr merge *)",
+      "Bash(terraform apply *)",
+      "Bash(bq *)"
+    ],
+    "deny": [
+      "Bash(gh repo delete *)",
+      "Bash(terraform destroy *)",
+      "Bash(gcloud * delete *)",
+      "Bash(gcloud billing *)",
+      "Read(~/.config/opensky/**)"
+    ]
+  }
+}
