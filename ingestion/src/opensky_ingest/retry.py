@@ -54,24 +54,23 @@ def backoff_delay(attempt: int, base: float) -> float:
 
 
 @dataclass(frozen=True)
-class RetryOutcome:
-    result: FetchResult | None
+class RetryOutcome[T]:
+    result: T | None
     attempts: int
     error: requests.RequestException | None
 
 
-def fetch_with_retry(
-    fetch: Callable[[str, BBox], FetchResult],
-    token: str,
-    bbox: BBox,
+def call_with_retry[T](
+    call: Callable[[], T],
     max_attempts: int = 3,
     base_delay: float = 1.0,
     max_wait: float = 30.0,
     sleep: Callable[[float], None] = time.sleep,
-) -> RetryOutcome:
+) -> RetryOutcome[T]:
+    """Run `call`, retrying the failures `classify` says are worth retrying."""
     for attempt in range(1, max_attempts + 1):
         try:
-            return RetryOutcome(fetch(token, bbox), attempt, None)
+            return RetryOutcome(call(), attempt, None)
         except requests.RequestException as e:
             if attempt == max_attempts:
                 return RetryOutcome(None, attempt, e)
@@ -83,3 +82,15 @@ def fetch_with_retry(
             else:
                 sleep(backoff_delay(attempt, base_delay))
     raise AssertionError("unreachable")
+
+
+def fetch_with_retry(
+    fetch: Callable[[str, BBox], FetchResult],
+    token: str,
+    bbox: BBox,
+    max_attempts: int = 3,
+    base_delay: float = 1.0,
+    max_wait: float = 30.0,
+    sleep: Callable[[float], None] = time.sleep,
+) -> RetryOutcome[FetchResult]:
+    return call_with_retry(lambda: fetch(token, bbox), max_attempts, base_delay, max_wait, sleep)

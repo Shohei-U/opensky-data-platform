@@ -15,11 +15,13 @@ import argparse
 import gzip
 import json
 import os
+import sys
 from datetime import UTC, datetime
 
 from opensky_ingest.auth import fetch_token, load_credentials
 from opensky_ingest.collect import collect
 from opensky_ingest.fetch import OKINAWA, fetch_states
+from opensky_ingest.retry import call_with_retry
 from opensky_ingest.sink import make_sink
 
 
@@ -35,7 +37,20 @@ def to_jsonl(rows: list[dict]) -> bytes:
     return "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows).encode()
 
 
-def main() -> None:
+def log_line(entry: dict) -> None:
+    # One JSON line per run: Cloud Logging and the Actions log keep it as a single entry.
+    print(json.dumps(entry, ensure_ascii=False), flush=True)
+
+
+def get_token() -> str:
+    creds = load_credentials()
+    out = call_with_retry(lambda: fetch_token(creds))
+    if out.result is None:
+        raise out.error  # type: ignore[misc]
+    return out.result
+
+
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--dest",
@@ -45,15 +60,32 @@ def main() -> None:
     parser.add_argument("--count", type=int, default=10, help="fetches per run")
     parser.add_argument("--interval", type=float, default=30.0, help="seconds between fetches")
     parser.add_argument("--slot-minutes", type=int, default=5, help="run schedule granularity")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if args.count < 1 or args.interval < 0 or not 1 <= args.slot_minutes <= 60:
         parser.error("need --count >= 1, --interval >= 0, 1 <= --slot-minutes <= 60")
 
+    try:
+        run(args)
+    except Exception as e:  # noqa: BLE001 - top-level handler: any failure becomes one log line
+        # Anything that stops the run: report it as one ERROR line instead of a traceback.
+        log_line(
+            {
+                "severity": "ERROR",
+                "message": f"run failed: {type(e).__name__}",
+                "error_type": type(e).__name__,
+                "error": str(e)[:500],
+            }
+        )
+        return 1
+    return 0
+
+
+def run(args: argparse.Namespace) -> None:
     sink = make_sink(args.dest)
     run_started = datetime.now(UTC)
     slot = slot_start(run_started, args.slot_minutes)
 
-    token = fetch_token(load_credentials())
+    token = get_token()
     result = collect(fetch_states, token, OKINAWA, args.count, args.interval)
 
     raw_uri = sink.write(
@@ -77,7 +109,6 @@ def main() -> None:
     failed = sum(1 for log in result.fetch_logs if log["error"])
     summary = (
         {
-            # One JSON line per run: Cloud Logging stores it as a single structured entry.
             "severity": "WARNING" if failed else "INFO",
             "message": f"fetched {len(result.records)} rows in {len(result.fetch_logs)} fetches",
         }
@@ -90,8 +121,8 @@ def main() -> None:
             "rate_limit_remaining": result.fetch_logs[-1]["rate_limit_remaining"],
         }
     )
-    print(json.dumps(summary), flush=True)
+    log_line(summary)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
