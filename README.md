@@ -8,7 +8,7 @@ OpenSky Network の航空機位置データ（ADS-B）を沖縄周辺で継続�
 ## 構成
 
 ```
-GitHub Actions（5分ごと）── 30秒×10回取得 ──▶ OpenSky REST API（沖縄周辺 24–28N, 123–129E）
+Cloud Scheduler（5分ごと）── workflow_dispatch ──▶ GitHub Actions ── 30秒×10回取得 ──▶ OpenSky REST API（沖縄周辺 24–28N, 123–129E）
    │ Workload Identity Federation（鍵ファイルなし）
    ▼
 GCS  gs://opensky-data-platform-raw
@@ -18,12 +18,12 @@ GCS  gs://opensky-data-platform-raw
 BigQuery（第3週）→ dbt（第4〜5週）→ Looker Studio（第6週）
 ```
 
-取得を GCP ではなく GitHub Actions で動かしているのは、**OpenSky が GCP の IP からの接続を遮断している**ため（Cloud Run・Cloud Shell から接続できないことを確かめた）。経緯は [ADR 0003](docs/adr/0003-ingestion-runs-on-github-actions.md)。
+取得を GCP ではなく GitHub Actions で動かしているのは、**OpenSky が GCP の IP からの接続を遮断している**ため（Cloud Run・Cloud Shell から接続できないことを確かめた）。経緯は [ADR 0003](docs/adr/0003-ingestion-runs-on-github-actions.md)。GitHub Actions の schedule はこのリポジトリでは動かなかったため、起動は Cloud Scheduler から行う（[ADR 0004](docs/adr/0004-trigger-ingest-from-cloud-scheduler.md)）。
 
 ## 現状（2026-10-04 / 第2週）
 
 - [x] 第1週: 沖縄 bbox を1回取得して GCS に配置、取得範囲を決定（[ADR 0001](docs/adr/0001-bbox-selection.md)）
-- [x] 第2週: 5分ごとに自動で取得して GCS に貯める
+- [x] 第2週: 5分ごとに自動で取得して GCS に貯める（2026-10-04 09:25 UTC の枠から稼働）
   - 30秒×10回を1ファイルに、指数バックオフと 429 対応、5分枠のファイル名で冪等に上書き
   - Cloud Run Jobs にデプロイ → OpenSky に接続できないと判明 → GitHub Actions に移行（[ADR 0002](docs/adr/0002-cloud-run-job-permissions-and-secrets.md)・[ADR 0003](docs/adr/0003-ingestion-runs-on-github-actions.md)）
   - 失敗も1行の構造化ログ（`severity` 付き JSON）
@@ -36,6 +36,7 @@ BigQuery（第3週）→ dbt（第4〜5週）→ Looker Studio（第6週）
 | [0001](docs/adr/0001-bbox-selection.md) | 取得範囲は沖縄周辺（1クレジット/回）、5分ごとに起動して30秒間隔×10回 |
 | [0002](docs/adr/0002-cloud-run-job-permissions-and-secrets.md) | サービスアカウントはバケット単位の objectUser、認証情報は Secret Manager に JSON 1つ |
 | [0003](docs/adr/0003-ingestion-runs-on-github-actions.md) | GCP の IP は遮断されるため、取得は GitHub Actions（Public リポジトリ）で動かす |
+| [0004](docs/adr/0004-trigger-ingest-from-cloud-scheduler.md) | GitHub の schedule が動かないため、Cloud Scheduler から workflow_dispatch で起動する |
 
 ## 使い方
 
@@ -51,10 +52,10 @@ uv run --project ingestion python -m opensky_ingest.cli --dest gs://<bucket> --c
 | ディレクトリ | 中身 |
 |---|---|
 | `ingestion/` | 取得（`fetch`）、リトライ（`retry`）、繰り返し取得（`collect`）、出力先（`sink`: ローカル / GCS）、CLI、Dockerfile |
-| `.github/workflows/` | `ingest.yml`（5分ごとの取得）、`ci.yml`（ruff・pytest） |
-| `scripts/gcp/` | GCP の設定スクリプト（Workload Identity Federation） |
+| `.github/workflows/` | `ingest.yml`（取得。Cloud Scheduler から起動）、`ci.yml`（ruff・pytest） |
+| `scripts/gcp/` | GCP の設定スクリプト（Workload Identity Federation、Cloud Scheduler） |
 | `docs/adr/` | 設計判断 |
-| `docs/runbook/` | クラウドの設定手順（Cloud Run Job、Workload Identity Federation） |
+| `docs/runbook/` | クラウドの設定手順（Cloud Run Job、Workload Identity Federation、Cloud Scheduler） |
 | `docs/learning/` | 週ごとに学んだこと |
 
 ## ドキュメント

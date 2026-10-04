@@ -20,11 +20,11 @@ OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuer
 - 危険な操作（gcloud・merge・terraform・bq・認証情報の読み取り）の ask / deny は `.claude/settings.json` に定義している。ルールを緩める変更は本人が判断する
 - 1タスク = 1PR（詳細は「開発フロー」）。日次メモは `notes/YYYY-MM-DD.md` に1行
 
-## 現在の状態（2026-10-04 時点・第2週ほぼ完了）
+## 現在の状態（2026-10-04 時点・第2週完了）
 
 ```
 ① 取り込み  ✅ #7 繰り返し取得 ✅ #8 リトライ ✅ #9 GCS へ書く ✅ #10 コンテナ化・Cloud Run（遮断が判明）
-            ✅ Public に作り直し（#31） ✅ Workload Identity Federation（#29） ✅ #28 失敗ログ ✅ #30 定期実行（GitHub Actions）
+            ✅ Public に作り直し（#31） ✅ Workload Identity Federation（#29） ✅ #28 失敗ログ ✅ #30 定期実行（Cloud Scheduler → GitHub Actions、ADR 0004）
 ② 蓄積 BigQuery（第3週） → ③ 変換 dbt（第4〜5週） → ④ 提供 Looker Studio（第6週） → ⑤ 運用（第7〜12週）
 ```
 
@@ -34,7 +34,8 @@ OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuer
 - GCP: プロジェクト `opensky-data-platform`（無料トライアル中、期限 2026-12-29、アップグレードしない）、予算アラート 月500円（20/60/100%、クレジットを差し引かない）
 - GCS: `gs://opensky-data-platform-raw`（us-central1）。`raw/` と `meta/` は `dt=YYYY-MM-DD/hh=HH/<5分枠>.jsonl(.gz)`。試しの書き込みは `dev/` の下
 - #10 で作ったもの（残してある。実行しなければ費用はほぼ0）: Artifact Registry `opensky`（イメージ `ingest`、最新2つだけ残す）、Cloud Run Job `opensky-ingest`、Secret `opensky-credentials`、サービスアカウント `opensky-ingest`。手順は `docs/runbook/cloud-run-job.md`
-- 取得: `.github/workflows/ingest.yml`（5分ごと＋手動実行）。OpenSky の認証情報は GitHub Secrets（`OPENSKY_CLIENT_ID` / `OPENSKY_CLIENT_SECRET`）
+- ADR 0004: GitHub の schedule は動かなかったため、Cloud Scheduler `opensky-ingest-dispatch`（us-central1、5分ごと）が workflow_dispatch を呼ぶ。トークン（fine-grained、Actions: Read and write のみ）の期限は 2027-10-04 ごろ。手順は `docs/runbook/ingest-scheduler.md`
+- 取得: `.github/workflows/ingest.yml`（workflow_dispatch のみ。1回約4分40秒、5分間隔に対して余裕約20秒）。OpenSky の認証情報は GitHub Secrets（`OPENSKY_CLIENT_ID` / `OPENSKY_CLIENT_SECRET`）
 - CI: `.github/workflows/ci.yml`（PR と main への push で ruff・pytest）。main はブランチ保護（PR 必須・CI 必須・管理者にも適用）
 - Workload Identity Federation: プール `github`、プロバイダ `opensky-repo`（このリポジトリの ID と main だけ）、なりすまし先は `opensky-ingest`。手順は `docs/runbook/github-actions-wif.md`
 - `gh` は接続先が2つ（`origin` と旧リポジトリの `archive`）あるため、`-R Shohei-U/opensky-data-platform` を付けて実行する
@@ -42,8 +43,7 @@ OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuer
 
 次にやること:
 
-- 定期実行（schedule）が5分ごとに動き続けているか確かめ、第2週のゴール（#17）を閉じる
-- 第3週: GCS → BigQuery。ロードと dbt の実行場所（GitHub Actions か Cloud Run Jobs か）を決める
+- 第3週: GCS → BigQuery。ロードの方法と実行場所を決める（ADR 0005）
 
 未解決:
 
