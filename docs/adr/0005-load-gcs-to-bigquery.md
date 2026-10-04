@@ -3,6 +3,10 @@
 - 日付: 2026-10-04
 - ステータス: 承認
 
+## 要約
+
+GCS のデータは Data Transfer Service が1時間ごとに BigQuery へ入れる。BigQuery の raw は30日で消し、元のデータは GCS に残す。
+
 ## 背景
 
 第2週で `gs://opensky-data-platform-raw` に5分ごとに2つのファイルが貯まるようになった（ADR 0003・0004）。

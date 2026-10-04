@@ -3,6 +3,10 @@
 - 日付: 2026-10-04
 - ステータス: 承認
 
+## 要約
+
+GitHub の schedule が動かなかったため、Cloud Scheduler が5分ごとに GitHub Actions を起動する。
+
 ## 背景
 
 ADR 0003 で取得を GitHub Actions に移し、`schedule`（cron）で5分ごとに動かす予定だった。しかし、このリポジトリでは schedule の実行が1回も作られなかった。
