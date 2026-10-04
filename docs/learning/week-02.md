@@ -4,6 +4,7 @@
 
 ```
 #7 繰り返し取得 → #8 リトライ → #9 GCS へ書く → #10 コンテナ・Cloud Run → 遮断が判明 → 取得は GitHub Actions へ（ADR 0003）
+→ リポジトリを Public に作り直し（#31）→ #29 Workload Identity Federation → #28 失敗ログ → #30 定期実行
 ```
 
 ## #7 30秒間隔×10回の取得を1ファイルに
@@ -73,3 +74,27 @@ ADP: パイプラインのオーケストレーション（Cloud Run Jobs）、�
 | Error Reporting | stderr のトレースバックは、自動で「エラーのグループ」にまとめられ、発生回数が見られる |
 
 ADP: パイプラインのオーケストレーション（Cloud Run Jobs・再試行）、データの管理（IAM・Secret Manager）、Cloud Logging と Error Reporting
+
+## #31 リポジトリを Public に作り直す
+
+| 学んだこと | 中身 |
+|---|---|
+| git の履歴は消しにくい | ファイルを直しても、過去の commit から読める。GitHub では、履歴を書き換えても PR の中に古い commit が残る |
+| 公開前に見る場所はファイルだけではない | commit の履歴・Issue・コメント・**編集履歴**・PR も公開される。Issue の編集履歴は、版ごとに削除できる |
+| 作り直しの手順 | 今の状態から親のない commit を1つ作って新しいリポジトリへ。Issue は Transfer で移す（コメント・ラベル・マイルストーン・親子関係・ボードも付いてくる。反映は少し遅れる） |
+| 手元だけの情報の置き場 | 環境やアカウントの情報は git の管理外のファイル（`AGENTS.local.md`）に分ける |
+| ブランチ保護 | Public（または有料プラン）で使える。PR 必須・CI 必須・直線の履歴・force push 禁止・管理者にも適用 |
+
+ADP: —（リポジトリ運用）
+
+## #29 Workload Identity Federation
+
+| 学んだこと | 中身 |
+|---|---|
+| 鍵ファイルを置かない認証 | GitHub が署名した ID トークンを、STS が GCP の短命なトークンに交換する。期限のない JSON キーを Secrets に置くより安全 |
+| プールとプロバイダ | プール = 外部の ID の入れ物、プロバイダ = どの発行元（GitHub）を信用するか。属性の対応付け（attribute mapping）と条件（attribute condition）で、受け入れる相手を絞る |
+| 名前ではなく ID で絞る | リポジトリ名は変えられる。`repository_id` なら、同じ名前のリポジトリを別に作られても通らない |
+| ブランチで絞る | `ref == refs/heads/main` で、Public リポジトリへの他人の PR から書かれるのを防ぐ |
+| 有効化の反映には時間がかかる | API を有効にした直後は、IAM の操作が `PERMISSION_DENIED` になることがある。少し待って再実行すると通った。だからスクリプトは「何度実行しても大丈夫」に作る |
+
+ADP: データの管理（IAM・サービスアカウント・外部からの認証）

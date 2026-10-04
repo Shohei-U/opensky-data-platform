@@ -24,7 +24,7 @@ OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuer
 
 ```
 ① 取り込み  ✅ #7 繰り返し取得 ✅ #8 リトライ ✅ #9 GCS へ書く ✅ #10 コンテナ化・Cloud Run（遮断が判明）
-            ▶ GitHub Actions での定期実行に切り替え中（ADR 0003）
+            ✅ Public に作り直し（#31） ✅ Workload Identity Federation（#29） ▶ #28 失敗ログ ▶ #30 定期実行
 ② 蓄積 BigQuery（第3週） → ③ 変換 dbt（第4〜5週） → ④ 提供 Looker Studio（第6週） → ⑤ 運用（第7〜12週）
 ```
 
@@ -34,13 +34,14 @@ OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuer
 - GCP: プロジェクト `opensky-data-platform`（無料トライアル中、期限 2026-12-29、アップグレードしない）、予算アラート 月500円（20/60/100%、クレジットを差し引かない）
 - GCS: `gs://opensky-data-platform-raw`（us-central1）。`raw/` と `meta/` は `dt=YYYY-MM-DD/hh=HH/<5分枠>.jsonl(.gz)`。試しの書き込みは `dev/` の下
 - #10 で作ったもの（残してある。実行しなければ費用はほぼ0）: Artifact Registry `opensky`（イメージ `ingest`、最新2つだけ残す）、Cloud Run Job `opensky-ingest`、Secret `opensky-credentials`、サービスアカウント `opensky-ingest`。手順は `docs/runbook/cloud-run-job.md`
-- CI: `.github/workflows/ci.yml`（PR と main への push で ruff・pytest）
+- CI: `.github/workflows/ci.yml`（PR と main への push で ruff・pytest）。main はブランチ保護（PR 必須・CI 必須・管理者にも適用）
+- Workload Identity Federation: プール `github`、プロバイダ `opensky-repo`（このリポジトリの ID と main だけ）、なりすまし先は `opensky-ingest`。手順は `docs/runbook/github-actions-wif.md`
 - 権限ルール: `.claude/settings.json`（gcloud・terraform apply・bq は ask、削除・課金系は deny）
 
 次にやること:
 
-- Workload Identity Federation の設定（本人が gcloud）→ 5分ごとの取得ワークフロー（エージェント）→ 動作確認 → Public 化
-- 失敗時のログも1行の JSON にする（`fetch_token` のリトライを含む）
+- #28 失敗時のログも1行の JSON にする（`fetch_token` のリトライを含む）
+- #30 5分ごとの取得ワークフロー（OpenSky の認証情報は GitHub の Secrets、GCS へは Workload Identity Federation）
 - 第3週: GCS → BigQuery。ロードと dbt の実行場所（GitHub Actions か Cloud Run Jobs か）を決める
 
 未解決:
