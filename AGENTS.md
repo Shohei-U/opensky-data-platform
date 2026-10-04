@@ -25,7 +25,7 @@ OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuer
 ```
 ① 取り込み  ✅ #7 繰り返し取得 ✅ #8 リトライ ✅ #9 GCS へ書く ✅ #10 コンテナ化・Cloud Run（遮断が判明）
             ✅ Public に作り直し（#31） ✅ Workload Identity Federation（#29） ✅ #28 失敗ログ ✅ #30 定期実行（Cloud Scheduler → GitHub Actions、ADR 0004）
-② 蓄積 BigQuery（第3週） → ③ 変換 dbt（第4〜5週） → ④ 提供 Looker Studio（第6週） → ⑤ 運用（第7〜12週）
+② 蓄積 BigQuery（第3週）✅ ADR 0005 → ③ 変換 dbt（第4〜5週） → ④ 提供 Looker Studio（第6週） → ⑤ 運用（第7〜12週）
 ```
 
 - ADR 0001: 沖縄周辺（24–28N, 123–129E）、5分ごとに起動して30秒間隔×10回取得（1クレジット/回）
@@ -35,6 +35,7 @@ OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuer
 - GCS: `gs://opensky-data-platform-raw`（us-central1）。`raw/` と `meta/` は `dt=YYYY-MM-DD/hh=HH/<5分枠>.jsonl(.gz)`。試しの書き込みは `dev/` の下
 - #10 で作ったもの（残してある。実行しなければ費用はほぼ0）: Artifact Registry `opensky`（イメージ `ingest`、最新2つだけ残す）、Cloud Run Job `opensky-ingest`、Secret `opensky-credentials`、サービスアカウント `opensky-ingest`。手順は `docs/runbook/cloud-run-job.md`
 - ADR 0004: GitHub の schedule は動かなかったため、Cloud Scheduler `opensky-ingest-dispatch`（us-central1、5分ごと）が workflow_dispatch を呼ぶ。トークン（fine-grained、Actions: Read and write のみ）の期限は 2027-10-04 ごろ。手順は `docs/runbook/ingest-scheduler.md`
+- ADR 0005: GCS → BigQuery は Data Transfer Service の Cloud Storage 転送（APPEND、1時間ごと、raw と meta の2設定）。raw テーブルは日付パーティション、有効期限30日（正本は GCS）。同じ枠の重複は dbt の staging で除く
 - 取得: `.github/workflows/ingest.yml`（workflow_dispatch のみ。1回約4分40秒、5分間隔に対して余裕約20秒）。OpenSky の認証情報は GitHub Secrets（`OPENSKY_CLIENT_ID` / `OPENSKY_CLIENT_SECRET`）
 - CI: `.github/workflows/ci.yml`（PR と main への push で ruff・pytest）。main はブランチ保護（PR 必須・CI 必須・管理者にも適用）
 - Workload Identity Federation: プール `github`、プロバイダ `opensky-repo`（このリポジトリの ID と main だけ）、なりすまし先は `opensky-ingest`。手順は `docs/runbook/github-actions-wif.md`
@@ -43,13 +44,13 @@ OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuer
 
 次にやること:
 
-- 第3週: GCS → BigQuery。ロードの方法と実行場所を決める（ADR 0005）
+- 第3週: ADR 0005 の実装。データセット・テーブル・スキーマを決め、DTS の転送設定を作る（gcloud / bq は本人が実行）
 
 未解決:
 
 - クレジットが戻るタイミング（UTC 0時では戻らなかった。直近24時間の積算か未確認）
 - トライアル終了後（2026-12-29 以降）にアップグレードなしで無料枠を使い続けられるか
-- GCS の書き込み回数の無料枠（月 5,000 回と記憶、未確認）。5分ごとに2ファイルで月約1.7万回になる
+- GCS の操作回数の無料枠（Class A 月 5,000 回と記憶、未確認）。5分ごとに2ファイルの書き込みで月約1.7万回、DTS の一覧で月約1,440回になる
 - Secret Manager の無料枠の数値（ADR 0002 の前提、未確認）
 - 地上機（`on_ground=true`）が見えていない。離着陸は高度の変化で判定する方針（第6週）
 
