@@ -1,0 +1,40 @@
+name: ingest
+
+# Fetch the Okinawa bbox every 5 minutes and write raw/ + meta/ to GCS (ADR 0003).
+# Runs here, not on GCP, because OpenSky blocks GCP's IP ranges.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # GitHub OIDC token, exchanged for GCP credentials (Workload Identity Federation)
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      OPENSKY_DEST: gs://opensky-data-platform-raw
+      GOOGLE_CLOUD_PROJECT: opensky-data-platform
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: projects/111971818872/locations/global/workloadIdentityPools/github/providers/opensky-repo
+          service_account: opensky-ingest@opensky-data-platform.iam.gserviceaccount.com
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: ingestion/uv.lock
+      - run: uv sync --project ingestion --locked --no-dev
+      - name: fetch 10 times at 30s intervals and write to GCS
+        run: uv run --project ingestion --no-sync python -m opensky_ingest.cli
+        env:
+          OPENSKY_CLIENT_ID: ${{ secrets.OPENSKY_CLIENT_ID }}
+          OPENSKY_CLIENT_SECRET: ${{ secrets.OPENSKY_CLIENT_SECRET }}
