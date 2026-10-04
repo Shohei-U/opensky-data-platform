@@ -45,3 +45,4 @@ OpenSky の README には "We may block AWS and other hyperscalers due to genera
 - GitHub Actions のランナーも Azure 上で動くため、今後遮断される可能性がある。取得の失敗率をメタで監視し、増えたら選択肢を見直す
 - schedule の遅れ・抜けで5分枠に欠けが出る。欠けの割合を第4週の freshness テストで測る
 - Public のリポジトリでは、60日間動きがないと schedule が自動で止まる
+- GitHub の規約（Additional Products and Features の Actions）は、GitHub がホストするランナーを「リポジトリのソフトウェアの開発・テスト・デプロイ・公開に関係のない用途」や「便益に見合わない負荷」に使うことを禁じている。5分ごとのデータ収集がこれに当たるかは明確でない（2026-10-04 に確認）。負荷は1ジョブ・約5分・同時1つと小さいため、このまま続ける（本人の判断）。Actions が止められた場合は、取得の場所を手元の Mac か VPS に移す。出力先（`--dest`）と認証（ADC・Workload Identity Federation）は切り替えられる作りになっている
