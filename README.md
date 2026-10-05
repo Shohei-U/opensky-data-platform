@@ -27,7 +27,8 @@ BigQuery（第3週）→ dbt（第4〜5週）→ Looker Studio（第6週）
   - 30秒×10回を1ファイルに、指数バックオフと 429 対応、5分枠のファイル名で冪等に上書き
   - Cloud Run Jobs にデプロイ → OpenSky に接続できないと判明 → GitHub Actions に移行（[ADR 0002](docs/adr/0002-cloud-run-job-permissions-and-secrets.md)・[ADR 0003](docs/adr/0003-ingestion-runs-on-github-actions.md)）
   - 失敗も1行の構造化ログ（`severity` 付き JSON）
-- [ ] 第3週: BigQuery で生データが見える
+- [x] 第3週: BigQuery で生データが見える（2026-10-05）
+  - 取得を毎時1回の書き込みに変えて GCS の操作回数を無料枠内に（ADR 0006）、DTS で毎時 BigQuery へ（MIRROR）
 
 ## 設計判断（ADR）
 

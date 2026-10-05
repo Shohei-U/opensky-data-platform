@@ -21,7 +21,7 @@ Google Cloud Associate Data Practitioner（ADP）の試験範囲と、この基�
 | 保存先の選択（GCS・BigQuery・Cloud SQL・Bigtable・Spanner） | ✅ | ADR 0003・0005（生データは GCS、分析は BigQuery） | 生ファイルは GCS、分析は BigQuery、トランザクションは Cloud SQL・Spanner、低遅延の大量キー検索は Bigtable |
 | 保存場所の種類（リージョン・デュアルリージョン・マルチリージョン） | ✅ | GCS バケットと BigQuery は `us-central1`（リージョン） | リージョンは安く、近くで処理できる。デュアル・マルチは可用性が高いが高い。無料枠は一部の US リージョンだけ |
 | 取り込みツールの選択（DTS・Storage Transfer Service・Dataflow・Data Fusion） | ✅ | ADR 0005・0006（BigQuery Data Transfer Service、MIRROR と実行時パラメータ） | GCS・SaaS から BigQuery への定期ロードは DTS。バケット間・他クラウドからのファイル移動は Storage Transfer Service。変換しながらのストリームは Dataflow |
-| ロードの道具（gcloud・bq コマンド・クライアントライブラリ） | ✅ / 🔜 | `sink.py`（Python のクライアントライブラリで GCS に書く）。第3週に bq コマンドでテーブルを作る | バッチロードは無料、ストリーミング挿入は有料 |
+| ロードの道具（gcloud・bq コマンド・クライアントライブラリ） | ✅ | `sink.py`（Python のクライアントライブラリで GCS に書く）、`scripts/gcp/setup-bigquery.sh`（bq コマンドでテーブルを作る） | バッチロードは無料、ストリーミング挿入は有料 |
 | ETL と ELT、データ品質、クレンジング | 🔜 第4週 | dbt の staging（重複の除去・型付け・テスト） | ELT は「先に入れて BigQuery の SQL で変換」。今の主流 |
 | Transfer Appliance | 📖 | — | ネットワークで送れないほど大量のデータを、物理的な機器で運ぶ |
 
@@ -29,7 +29,7 @@ Google Cloud Associate Data Practitioner（ADP）の試験範囲と、この基�
 
 | 試験の項目 | 状態 | この基盤のどこ | 試験で問われる観点 |
 |---|---|---|---|
-| BigQuery の SQL で集計する | 🔜 第3〜6週 | raw の確認、dbt のマート | パーティションで絞るとスキャン量（＝費用）が減る |
+| BigQuery の SQL で集計する | ✅ / 🔜 第4〜6週 | `docs/runbook/bigquery-dts.md` の確認の SQL。この先 dbt のマート | パーティションで絞るとスキャン量（＝費用）が減る |
 | Looker Studio でダッシュボード | 🔜 第6週 | 日ごとの便数のダッシュボード | Looker Studio は無料で手軽。Looker は LookML でモデルを一元管理する有料製品 |
 | BigQuery ML（モデルの作成・評価・予測） | 🔜 第6週（#44、無料と確認できた場合だけ） | 日ごとの便数の時系列予測 | `CREATE MODEL` → `ML.EVALUATE` → `ML.PREDICT` / `ML.FORECAST` の流れ |
 | Jupyter・Colab Enterprise、Looker・LookML | 📖 | — | 実行環境や製品が有料のため触らない |
@@ -52,7 +52,7 @@ Google Cloud Associate Data Practitioner（ADP）の試験範囲と、この基�
 |---|---|---|---|
 | IAM の最小権限（基本ロール・事前定義ロール・権限） | ✅ | ADR 0002（バケット単位の objectUser） | 基本ロール（オーナー・編集者・閲覧者）は広すぎる。事前定義ロールをリソース単位で付ける |
 | 鍵を作らない認証 | ✅ | Workload Identity Federation（`docs/runbook/github-actions-wif.md`） | サービスアカウントの鍵ファイルは漏えいの危険がある。外部の実行環境からは WIF を使う |
-| 期限が来たら自動で消す | 🔜 第3週・第10週 | BigQuery のパーティションの有効期限30日（ADR 0005）、GCS のライフサイクル | BigQuery はテーブルやパーティションの有効期限、GCS はライフサイクルのルール |
+| 期限が来たら自動で消す | ✅ / 🔜 第10週 | BigQuery のパーティションの有効期限30日（`setup-bigquery.sh`）。GCS のライフサイクルは第10週 | BigQuery はテーブルやパーティションの有効期限、GCS はライフサイクルのルール |
 | GCS のストレージクラス | 🔜 第10週 | — | 読む頻度で選ぶ: Standard（よく読む）・Nearline（月1回）・Coldline（四半期に1回）・Archive（年1回） |
 | GCS のアクセス制御（公開・非公開・均一なアクセス） | 📖 | — | 均一なバケットレベルのアクセスにすると、IAM だけで管理できる |
 | 暗号化（CMEK・CSEK・Google 管理の鍵）、Cloud KMS | 📖 | — | 既定は Google 管理の鍵。鍵を自分で管理する必要があれば CMEK（Cloud KMS） |
@@ -116,4 +116,20 @@ A. 期限の長いトークンを手で発行して埋め込む　B. 期限が�
 <details><summary>答え</summary>
 
 B。期限の少し前に取り直し、それでも 401 なら取り直す（`ingestion/src/opensky_ingest/auth.py` の `TokenCache`）。ADP では直接は問われにくいが、パイプラインの信頼性の基本。
+</details>
+
+**問8.** パーティション分けしたテーブルに、日付で絞り込まないクエリを流させたくない（全期間を読んで費用がかかるのを防ぎたい）。最も適切なのは？
+A. テーブルの説明に注意書きを書く　B. テーブルに「パーティション フィルタを必須にする」を設定する　C. クラスタリングを設定する　D. ビューを作る
+
+<details><summary>答え</summary>
+
+B。`require_partition_filter` を有効にすると、`WHERE _PARTITIONDATE = ...` などのない クエリはエラーになる（`scripts/gcp/setup-bigquery.sh`）。
+</details>
+
+**問9.** オンデマンド料金で、72 KB しか読まないクエリを実行した。課金の対象になるバイト数は？
+A. 0 B　B. 72 KB　C. 10 MB　D. 1 GB
+
+<details><summary>答え</summary>
+
+C。オンデマンドでは、1クエリにつき最低 10 MB（参照するテーブルごと）で数える。ジョブ情報の「処理されたバイト数」と「課金されるバイト数」の違い（2026-10-05 に実際に確認）。
 </details>

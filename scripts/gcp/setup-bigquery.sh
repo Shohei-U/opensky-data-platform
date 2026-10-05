@@ -17,7 +17,7 @@ gcloud services enable bigquery.googleapis.com bigquerydatatransfer.googleapis.c
   --project="$PROJECT"
 
 echo "== 2/3 dataset ${DATASET} (${LOCATION})"
-if bq --project_id="$PROJECT" --format=none show "$DATASET" 2>/dev/null; then
+if bq --project_id="$PROJECT" --format=none show "$DATASET" >/dev/null 2>&1; then
   echo "exists, skipped"
 else
   bq --project_id="$PROJECT" --location="$LOCATION" mk --dataset \
@@ -27,7 +27,7 @@ fi
 
 echo "== 3/3 tables (partitioned by day, partitions expire after 30 days)"
 for table in states fetch_meta; do
-  if bq --project_id="$PROJECT" --format=none show "${DATASET}.${table}" 2>/dev/null; then
+  if bq --project_id="$PROJECT" --format=none show "${DATASET}.${table}" >/dev/null 2>&1; then
     echo "${table}: exists, skipped"
     continue
   fi
