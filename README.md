@@ -8,12 +8,12 @@ OpenSky Network の航空機位置データ（ADS-B）を沖縄周辺で継続�
 ## 構成
 
 ```
-Cloud Scheduler（5分ごと）── workflow_dispatch ──▶ GitHub Actions ── 30秒×10回取得 ──▶ OpenSky REST API（沖縄周辺 24–28N, 123–129E）
+Cloud Scheduler（毎時）── workflow_dispatch ──▶ GitHub Actions ── 30秒×108回取得（約54分）──▶ OpenSky REST API（沖縄周辺 24–28N, 123–129E）
    │ Workload Identity Federation（鍵ファイルなし）
    ▼
 GCS  gs://opensky-data-platform-raw
-   ├ raw/dt=YYYY-MM-DD/hh=HH/<5分枠>.jsonl.gz   state vector（1回の起動 = 1ファイル）
-   └ meta/dt=YYYY-MM-DD/hh=HH/<5分枠>.jsonl     取得ごとのステータス・件数・残りクレジット・試行回数
+   ├ raw/dt=YYYY-MM-DD/hh=HH/<1時間枠>.jsonl.gz   state vector（1回の起動 = 1ファイル）
+   └ meta/dt=YYYY-MM-DD/hh=HH/<1時間枠>.jsonl     取得ごとのステータス・件数・残りクレジット・試行回数
    ▼
 BigQuery（第3週）→ dbt（第4〜5週）→ Looker Studio（第6週）
 ```
@@ -33,10 +33,12 @@ BigQuery（第3週）→ dbt（第4〜5週）→ Looker Studio（第6週）
 
 | # | 決定 |
 |---|---|
-| [0001](docs/adr/0001-bbox-selection.md) | 取得範囲は沖縄周辺（1クレジット/回）、5分ごとに起動して30秒間隔×10回 |
+| [0001](docs/adr/0001-bbox-selection.md) | 取得範囲は沖縄周辺（1クレジット/回） |
 | [0002](docs/adr/0002-cloud-run-job-permissions-and-secrets.md) | サービスアカウントはバケット単位の objectUser、認証情報は Secret Manager に JSON 1つ |
 | [0003](docs/adr/0003-ingestion-runs-on-github-actions.md) | GCP の IP は遮断されるため、取得は GitHub Actions（Public リポジトリ）で動かす |
 | [0004](docs/adr/0004-trigger-ingest-from-cloud-scheduler.md) | GitHub の schedule が動かないため、Cloud Scheduler から workflow_dispatch で起動する |
+| [0005](docs/adr/0005-load-gcs-to-bigquery.md) | GCS → BigQuery は Data Transfer Service（1時間ごと）、raw は30日で消す |
+| [0006](docs/adr/0006-hourly-writes-for-gcs-free-tier.md) | GCS の書き込みを無料枠に収めるため、毎時起動して約54分取り、1回で書く |
 
 ## 使い方
 

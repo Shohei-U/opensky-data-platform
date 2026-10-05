@@ -20,7 +20,7 @@ Google Cloud Associate Data Practitioner（ADP）の試験範囲と、この基�
 | データの形式（CSV・JSON・Parquet・Avro） | ✅ | `ingestion/src/opensky_ingest/cli.py`（JSON Lines を gzip で保存） | JSON は半構造化。BigQuery へのロードは Avro・Parquet が速くスキーマも持てる。CSV・JSON はスキーマを別に指定する |
 | 保存先の選択（GCS・BigQuery・Cloud SQL・Bigtable・Spanner） | ✅ | ADR 0003・0005（生データは GCS、分析は BigQuery） | 生ファイルは GCS、分析は BigQuery、トランザクションは Cloud SQL・Spanner、低遅延の大量キー検索は Bigtable |
 | 保存場所の種類（リージョン・デュアルリージョン・マルチリージョン） | ✅ | GCS バケットと BigQuery は `us-central1`（リージョン） | リージョンは安く、近くで処理できる。デュアル・マルチは可用性が高いが高い。無料枠は一部の US リージョンだけ |
-| 取り込みツールの選択（DTS・Storage Transfer Service・Dataflow・Data Fusion） | ✅ | ADR 0005（BigQuery Data Transfer Service を選んだ） | GCS・SaaS から BigQuery への定期ロードは DTS。バケット間・他クラウドからのファイル移動は Storage Transfer Service。変換しながらのストリームは Dataflow |
+| 取り込みツールの選択（DTS・Storage Transfer Service・Dataflow・Data Fusion） | ✅ | ADR 0005・0006（BigQuery Data Transfer Service、MIRROR と実行時パラメータ） | GCS・SaaS から BigQuery への定期ロードは DTS。バケット間・他クラウドからのファイル移動は Storage Transfer Service。変換しながらのストリームは Dataflow |
 | ロードの道具（gcloud・bq コマンド・クライアントライブラリ） | ✅ / 🔜 | `sink.py`（Python のクライアントライブラリで GCS に書く）。第3週に bq コマンドでテーブルを作る | バッチロードは無料、ストリーミング挿入は有料 |
 | ETL と ELT、データ品質、クレンジング | 🔜 第4週 | dbt の staging（重複の除去・型付け・テスト） | ELT は「先に入れて BigQuery の SQL で変換」。今の主流 |
 | Transfer Appliance | 📖 | — | ネットワークで送れないほど大量のデータを、物理的な機器で運ぶ |
@@ -100,4 +100,20 @@ A. 毎日 DELETE を流す　B. パーティションの有効期限を設定す
 <details><summary>答え</summary>
 
 B。日付でパーティション分けしたテーブルに有効期限を付けると、古いパーティションが自動で消える。D は GCS のオブジェクト向け（ADR 0005）。
+</details>
+
+**問6.** DTS で GCS から BigQuery へ1時間ごとに転送している。同じファイルを上書きすることがあり、BigQuery に重複を入れたくない。日付ごとのパーティションに入れるとき、最も適切な設定は？
+A. APPEND で、転送元を GCS 全体にする　B. MIRROR で、転送元と転送先パーティションを実行時パラメータでその日に絞る　C. ストリーミング挿入に切り替える　D. 毎回テーブルを削除してから APPEND する
+
+<details><summary>答え</summary>
+
+B。MIRROR は指定したパーティションを丸ごと入れ直すので、上書きされたファイルも重複しない。`{run_time|"%Y%m%d"}` のような実行時パラメータで、転送元のパスと転送先のパーティション（`table$20261005`）を同じ日にそろえる（ADR 0006）。
+</details>
+
+**問7.** 長時間動くバッチが、30分で期限が切れるアクセストークンを使って API を呼ぶ。最も適切なのは？
+A. 期限の長いトークンを手で発行して埋め込む　B. 期限が来る前にトークンを取り直し、401 が返ったら取り直す　C. 30分ごとにジョブを最初からやり直す　D. 認証をやめる
+
+<details><summary>答え</summary>
+
+B。期限の少し前に取り直し、それでも 401 なら取り直す（`ingestion/src/opensky_ingest/auth.py` の `TokenCache`）。ADP では直接は問われにくいが、パイプラインの信頼性の基本。
 </details>

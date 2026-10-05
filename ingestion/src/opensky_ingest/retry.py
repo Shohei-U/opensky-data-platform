@@ -30,7 +30,7 @@ def classify(error: requests.RequestException, max_wait: float) -> Decision:
     - `error.response` is None for timeouts / connection errors, otherwise has `.status_code`
       and `.headers`
     - On 429, OpenSky sends `X-Rate-Limit-Retry-After-Seconds` (seconds until credits return)
-    - `max_wait` is the longest pause that still fits in this run (a run lasts ~5 minutes)
+    - `max_wait` is the longest pause worth taking before giving up on this fetch
     """
     resp = error.response
     if resp is None:
@@ -42,7 +42,7 @@ def classify(error: requests.RequestException, max_wait: float) -> Decision:
         after = resp.headers.get("X-Rate-Limit-Retry-After-Seconds")
         if after is not None and float(after) <= max_wait:
             return Decision("wait", float(after))
-        # Credits are gone for longer than this run lasts (or we can't tell): stop spending.
+        # Credits are gone for longer than we are willing to wait (or we can't tell): stop.
         return Decision("give_up")
     # 4xx: the request itself is wrong (bad params, expired token). Same answer every time.
     return Decision("give_up")

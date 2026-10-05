@@ -29,15 +29,16 @@ OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuer
 ② 蓄積 BigQuery（第3週）✅ ADR 0005 → ③ 変換 dbt（第4〜5週） → ④ 提供 Looker Studio（第6週） → ⑤ 運用（第7〜12週）
 ```
 
-- ADR 0001: 沖縄周辺（24–28N, 123–129E）、5分ごとに起動して30秒間隔×10回取得（1クレジット/回）
+- ADR 0001: 沖縄周辺（24–28N, 123–129E）、1クレジット/回（間隔は ADR 0006 で変更）
 - ADR 0002: Cloud Run Job 用サービスアカウント `opensky-ingest` にバケット単位の objectUser、認証情報は Secret Manager の `opensky-credentials`（JSON 1つ）
 - ADR 0003: GCP の IP は OpenSky に遮断される（Cloud Run・Cloud Shell とも接続不可、GitHub Actions は接続可）。取得は GitHub Actions の schedule で動かし、リポジトリを Public にする。GCS へは Workload Identity Federation で認証する
 - GCP: プロジェクト `opensky-data-platform`（無料トライアル中、期限 2026-12-29、アップグレードしない）、予算アラート 月500円（20/60/100%、クレジットを差し引かない）
 - GCS: `gs://opensky-data-platform-raw`（us-central1）。`raw/` と `meta/` は `dt=YYYY-MM-DD/hh=HH/<5分枠>.jsonl(.gz)`。試しの書き込みは `dev/` の下
 - #10 で作ったもの（残してある。実行しなければ費用はほぼ0）: Artifact Registry `opensky`（イメージ `ingest`、最新2つだけ残す）、Cloud Run Job `opensky-ingest`、Secret `opensky-credentials`、サービスアカウント `opensky-ingest`。手順は `docs/runbook/cloud-run-job.md`
-- ADR 0004: GitHub の schedule は動かなかったため、Cloud Scheduler `opensky-ingest-dispatch`（us-central1、5分ごと）が workflow_dispatch を呼ぶ。トークン（fine-grained、Actions: Read and write のみ）の期限は 2027-10-04 ごろ。手順は `docs/runbook/ingest-scheduler.md`
-- ADR 0005: GCS → BigQuery は Data Transfer Service の Cloud Storage 転送（APPEND、1時間ごと、raw と meta の2設定）。raw テーブルは日付パーティション、有効期限30日（正本は GCS）。同じ枠の重複は dbt の staging で除く
-- 取得: `.github/workflows/ingest.yml`（workflow_dispatch のみ。1回約4分40秒、5分間隔に対して余裕約20秒）。OpenSky の認証情報は GitHub Secrets（`OPENSKY_CLIENT_ID` / `OPENSKY_CLIENT_SECRET`）
+- ADR 0004: GitHub の schedule は動かなかったため、Cloud Scheduler `opensky-ingest-dispatch`（us-central1、毎時0分）が workflow_dispatch を呼ぶ。トークン（fine-grained、Actions: Read and write のみ）の期限は 2027-10-04 ごろ。手順は `docs/runbook/ingest-scheduler.md`
+- ADR 0005: GCS → BigQuery は Data Transfer Service の Cloud Storage 転送（1時間ごと、raw と meta の2設定）。raw テーブルは日付パーティション、有効期限30日（正本は GCS）
+- ADR 0006: GCS の Class A を無料枠内にするため、取得は毎時起動して30秒×108回（約54分）を1回で書く。トークンは25分で取り直す。DTS は毎時30分、転送元 `raw/dt={run_time-1h|"%Y-%m-%d"}/*`、MIRROR でその日のパーティションを入れ直す（Class A 約3,000回/月）
+- 取得: `.github/workflows/ingest.yml`（workflow_dispatch のみ。1回約55分、timeout 65分）。OpenSky の認証情報は GitHub Secrets（`OPENSKY_CLIENT_ID` / `OPENSKY_CLIENT_SECRET`）
 - CI: `.github/workflows/ci.yml`（PR と main への push で ruff・pytest）。main はブランチ保護（PR 必須・CI 必須・管理者にも適用）
 - Workload Identity Federation: プール `github`、プロバイダ `opensky-repo`（このリポジトリの ID と main だけ）、なりすまし先は `opensky-ingest`。手順は `docs/runbook/github-actions-wif.md`
 - `gh` は接続先が2つ（`origin` と旧リポジトリの `archive`）あるため、`-R Shohei-U/opensky-data-platform` を付けて実行する
@@ -51,7 +52,7 @@ OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuer
 
 - クレジットが戻るタイミング（UTC 0時では戻らなかった。直近24時間の積算か未確認）
 - トライアル終了後（2026-12-29 以降）にアップグレードなしで無料枠を使い続けられるか
-- GCS の操作回数: 無料枠は Class A 月 5,000 回・Class B 月 5万回（us-central1、2026-10-04 に確認）。書き込み（Class A）は5分ごとに2ファイルで月約1.7万回、DTS の一覧で月約1,440回になり、無料枠を超える。対処は未決定
+- GCS の操作回数: 無料枠は Class A 月 5,000 回・Class B 月 5万回（us-central1、2026-10-04 に確認）。ADR 0006 で Class A は月約3,000回、Class B は約1.8万回の見込み。切り替え後に実際の回数を Console の請求で確かめる
 - Secret Manager の無料枠の数値（ADR 0002 の前提、未確認）
 - 地上機（`on_ground=true`）が見えていない。離着陸は高度の変化で判定する方針（第6週）
 

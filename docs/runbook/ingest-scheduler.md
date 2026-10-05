@@ -1,11 +1,11 @@
-# 取得ワークフローを Cloud Scheduler から起動する（ADR 0004）
+# 取得ワークフローを Cloud Scheduler から起動する（ADR 0004・0006）
 
 ```
-Cloud Scheduler: opensky-ingest-dispatch（us-central1、5分ごと、UTC）
+Cloud Scheduler: opensky-ingest-dispatch（us-central1、毎時0分、UTC）
   │ POST https://api.github.com/repos/Shohei-U/opensky-data-platform/actions/workflows/ingest.yml/dispatches
   │ body {"ref":"main"}、ヘッダー Authorization: Bearer <fine-grained token>
   ▼
-GitHub Actions: ingest（workflow_dispatch）── 30秒×10回 ──▶ OpenSky ──▶ GCS
+GitHub Actions: ingest（workflow_dispatch）── 30秒×108回（約54分）──▶ OpenSky ──▶ GCS（1時間に2ファイル）
 ```
 
 ## 1. GitHub のトークンを作る（本人、ブラウザ）
@@ -48,6 +48,15 @@ gcloud scheduler jobs describe opensky-ingest-dispatch --location=us-central1 \
 ```
 
 `gh run list` に `workflow_dispatch` の実行が増えていれば成功。Cloud Scheduler の呼び出しが失敗すると、ジョブの `status` にエラーのコード（401 ならトークンの誤りか期限切れ）が出る。
+
+## 間隔だけ変える（トークンはそのまま）
+
+```bash
+gcloud scheduler jobs update http opensky-ingest-dispatch --location=us-central1 \
+  --schedule="0 * * * *"
+```
+
+`update` は指定した項目だけを変える。ヘッダー（トークン）は残る。2026-10-05 に5分ごとから毎時に変えた（ADR 0006）。
 
 ## 止める・再開する
 

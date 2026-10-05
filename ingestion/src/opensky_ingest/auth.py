@@ -2,6 +2,8 @@
 
 import json
 import os
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -57,3 +59,33 @@ def fetch_token(creds: Credentials, timeout: float = 10.0) -> str:
     )
     resp.raise_for_status()
     return resp.json()["access_token"]
+
+
+class TokenCache:
+    """Reuse one access token and get a new one before it expires.
+
+    OpenSky tokens expire after 30 minutes and a run lasts ~55 minutes, so the token is
+    refreshed once it is `max_age` seconds old. `invalidate()` forces a refresh on the next
+    call (used after a 401, which means the token expired early).
+    """
+
+    def __init__(
+        self,
+        fetch: Callable[[], str],
+        max_age: float = 25 * 60,
+        monotonic: Callable[[], float] = time.monotonic,
+    ):
+        self._fetch = fetch
+        self._max_age = max_age
+        self._monotonic = monotonic
+        self._token: str | None = None
+        self._fetched_at = 0.0
+
+    def __call__(self) -> str:
+        if self._token is None or self._monotonic() - self._fetched_at >= self._max_age:
+            self._token = self._fetch()
+            self._fetched_at = self._monotonic()
+        return self._token
+
+    def invalidate(self) -> None:
+        self._token = None
