@@ -9,5 +9,6 @@
 
 | もの | 期限 | 更新の手順 |
 |---|---|---|
-| GitHub fine-grained token `opensky-ingest-dispatch`（Cloud Scheduler が workflow_dispatch を呼ぶ） | 2027-10-04 ごろ（作成時に1年を選択） | GitHub で Regenerate → `bash scripts/gcp/setup-ingest-scheduler.sh` を再実行（docs/runbook/ingest-scheduler.md） |
-| GCP 無料トライアル | 2026-12-29 | アップグレードしない。終了後の扱いを確認する |
+| GitHub fine-grained token `opensky-ingest-dispatch`（Cloud Scheduler が workflow_dispatch を呼ぶ） | 2027-10-05 ごろ（2026-10-05 に再生成、1年を選択。画面に出たため作り直した） | GitHub で Regenerate → `bash scripts/gcp/setup-ingest-scheduler.sh` を再実行（docs/runbook/ingest-scheduler.md） |
+| GCP 無料トライアル | 2026-12-29 |
+| Cloud Monitoring のアラート（作った場合、#45） | 2027-08-31 までに削除（2027-09-01 から課金） | アラートのポリシーを削除する | アップグレードしない。終了後の扱いを確認する |
