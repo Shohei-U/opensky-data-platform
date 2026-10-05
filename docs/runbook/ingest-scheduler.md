@@ -53,10 +53,10 @@ gcloud scheduler jobs describe opensky-ingest-dispatch --location=us-central1 \
 
 ```bash
 gcloud scheduler jobs update http opensky-ingest-dispatch --location=us-central1 \
-  --schedule="0 * * * *"
+  --schedule="0 * * * *" --format=none
 ```
 
-`update` は指定した項目だけを変える。ヘッダー（トークン）は残る。2026-10-05 に5分ごとから毎時に変えた（ADR 0006）。
+`update` は指定した項目だけを変える。ヘッダー（トークン）は残る。**`--format=none` を必ず付ける**: 付けないと結果のジョブ設定が表示され、Authorization ヘッダーのトークンが画面に出る（2026-10-05 に一度出してしまい、トークンを作り直した）。`describe` も同じで、下の「確かめる」のように `--format` で項目を絞る。2026-10-05 に5分ごとから毎時に変えた（ADR 0006）。
 
 ## 止める・再開する
 
