@@ -45,6 +45,7 @@ ADR は「なぜこの作りにしたか」を1つの判断につき1ページ�
 | [0003](0003-ingestion-runs-on-github-actions.md) | 取得は GitHub Actions で動かす（GCP は OpenSky に遮断される）。0002 の「Cloud Run で動かす」部分を置き換え | 実測で前提が崩れたときに判断を変える |
 | [0004](0004-trigger-ingest-from-cloud-scheduler.md) | Cloud Scheduler から GitHub Actions を起動する | 外部サービスの不具合を別の仕組みで回避する |
 | [0005](0005-load-gcs-to-bigquery.md) | GCS → BigQuery は Data Transfer Service、1時間ごと、raw は30日で消す | ロード方法の使い分け、鮮度と単純さのトレードオフ |
+| [0006](0006-hourly-writes-for-gcs-free-tier.md) | 毎時起動して1回で書く。DTS はその日の分を MIRROR で入れ直す。0001・0005 の一部を置き換え | 無料枠から逆算する設計、APPEND と MIRROR の違い |
 
 ## 書き方（テンプレート）
 

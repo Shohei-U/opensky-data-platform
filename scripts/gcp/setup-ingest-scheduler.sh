@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start the ingest workflow every 5 minutes from Cloud Scheduler (ADR 0004).
+# Start the ingest workflow every hour from Cloud Scheduler (ADR 0004, ADR 0006).
 # Run by a person, once (re-run to rotate the token). Explained in docs/runbook/ingest-scheduler.md.
 #
 # The GitHub token is read from the clipboard (copy it right before running) so it never
@@ -29,9 +29,9 @@ else
   header_flag=--headers
 fi
 
-echo "== 2/2 ${action} the job ${JOB} (every 5 minutes, UTC)"
+echo "== 2/2 ${action} the job ${JOB} (every hour on the hour, UTC)"
 gcloud scheduler jobs "$action" http "$JOB" --project="$PROJECT" --location="$REGION" \
-  --schedule="*/5 * * * *" --time-zone="Etc/UTC" \
+  --schedule="0 * * * *" --time-zone="Etc/UTC" \
   --uri="$URL" --http-method=POST \
   --message-body='{"ref":"main"}' \
   "$header_flag"="Authorization=Bearer ${TOKEN},Accept=application/vnd.github+json,X-GitHub-Api-Version=2022-11-28,User-Agent=opensky-ingest-scheduler,Content-Type=application/json" \

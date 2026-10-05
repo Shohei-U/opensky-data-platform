@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from opensky_ingest.auth import load_credentials
+from opensky_ingest.auth import TokenCache, load_credentials
 
 
 @pytest.fixture(autouse=True)
@@ -30,3 +30,32 @@ def test_env_vars_take_precedence(tmp_path, monkeypatch):
 def test_missing_file_explains_what_to_set(tmp_path):
     with pytest.raises(FileNotFoundError, match="OPENSKY_CLIENT_ID"):
         load_credentials(tmp_path / "missing.json")
+
+
+class Counter:
+    def __init__(self):
+        self.n = 0
+
+    def __call__(self) -> str:
+        self.n += 1
+        return f"tok{self.n}"
+
+
+def test_token_is_reused_until_it_gets_old():
+    clock = {"t": 0.0}
+    fetch = Counter()
+    cache = TokenCache(fetch, max_age=1500, monotonic=lambda: clock["t"])
+    assert cache() == "tok1"
+    clock["t"] = 1499
+    assert cache() == "tok1"
+    clock["t"] = 1500
+    assert cache() == "tok2"
+    assert fetch.n == 2
+
+
+def test_invalidate_forces_a_new_token():
+    fetch = Counter()
+    cache = TokenCache(fetch, monotonic=lambda: 0.0)
+    cache()
+    cache.invalidate()
+    assert cache() == "tok2"

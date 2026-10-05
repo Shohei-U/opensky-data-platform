@@ -24,7 +24,7 @@ class FakeClock:
         return self.t
 
 
-def run(fetch, count=3, interval=30.0, clock=None):
+def run(fetch, count=3, interval=30.0, clock=None, token=lambda: "tok", invalidate=None):
     clock = clock or FakeClock()
 
     def timed_fetch(token, bbox):
@@ -33,13 +33,14 @@ def run(fetch, count=3, interval=30.0, clock=None):
 
     result = collect(
         timed_fetch,
-        "tok",
+        token,
         OKINAWA,
         count,
         interval,
         sleep=clock.sleep,
         monotonic=clock.monotonic,
         now=lambda: datetime(2026, 9, 30, 3, 0, tzinfo=UTC),
+        invalidate_token=invalidate or (lambda: None),
     )
     return result, clock
 
@@ -106,3 +107,36 @@ def test_rate_limited_run_stops_early():
     result, _ = run(failing_at(1, 429), count=3)
     assert [log["seq"] for log in result.fetch_logs] == [0, 1]
     assert result.fetch_logs[1]["status_code"] == 429
+
+
+def test_token_is_asked_for_before_every_fetch():
+    seen = []
+
+    def fetch(token, bbox):
+        seen.append(token)
+        return ok()(token, bbox)
+
+    tokens = iter(["t1", "t2", "t3"])
+    run(fetch, count=3, token=lambda: next(tokens))
+    assert seen == ["t1", "t2", "t3"]
+
+
+def test_unauthorized_fetch_invalidates_the_token():
+    invalidated = []
+    run(failing_at(1, 401), count=3, invalidate=lambda: invalidated.append(True))
+    assert invalidated == [True]
+
+
+def test_failed_token_refresh_is_logged_and_the_run_continues():
+    calls = {"n": 0}
+
+    def token():
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise requests.ConnectionError("auth down")
+        return "tok"
+
+    result, _ = run(ok(n_states=1), count=3, token=token)
+    assert len(result.records) == 2
+    assert result.fetch_logs[1]["error"].startswith("token: ConnectionError")
+    assert result.fetch_logs[1]["attempts"] == 0

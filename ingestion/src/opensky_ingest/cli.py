@@ -1,4 +1,4 @@
-"""Poll the Okinawa bbox and write one raw file + one meta file per 5-minute slot.
+"""Poll the Okinawa bbox for most of an hour and write one raw file + one meta file.
 
     raw/dt=YYYY-MM-DD/hh=HH/<slot>.jsonl.gz   state vectors from every fetch in the run
     meta/dt=YYYY-MM-DD/hh=HH/<slot>.jsonl     one line per fetch (status, rows, credits, ...)
@@ -6,9 +6,12 @@
 <slot> is the run start floored to --slot-minutes, so re-running the same slot overwrites
 the same objects instead of adding duplicates.
 
+One run per hour (108 fetches x 30s, ~54 minutes) keeps GCS writes at 2 per hour, inside
+the free tier of 5,000 Class A operations a month (ADR 0006).
+
 Usage (from repo root):
     uv run --project ingestion python -m opensky_ingest.cli [--dest data | gs://bucket]
-        [--count 10] [--interval 30]
+        [--count 108] [--interval 30] [--slot-minutes 60]
 """
 
 import argparse
@@ -18,7 +21,7 @@ import os
 import sys
 from datetime import UTC, datetime
 
-from opensky_ingest.auth import fetch_token, load_credentials
+from opensky_ingest.auth import TokenCache, fetch_token, load_credentials
 from opensky_ingest.collect import collect
 from opensky_ingest.fetch import OKINAWA, fetch_states
 from opensky_ingest.retry import call_with_retry
@@ -57,9 +60,9 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("OPENSKY_DEST", "data"),
         help="local directory or gs://bucket[/prefix] (env: OPENSKY_DEST)",
     )
-    parser.add_argument("--count", type=int, default=10, help="fetches per run")
+    parser.add_argument("--count", type=int, default=108, help="fetches per run")
     parser.add_argument("--interval", type=float, default=30.0, help="seconds between fetches")
-    parser.add_argument("--slot-minutes", type=int, default=5, help="run schedule granularity")
+    parser.add_argument("--slot-minutes", type=int, default=60, help="run schedule granularity")
     args = parser.parse_args(argv)
     if args.count < 1 or args.interval < 0 or not 1 <= args.slot_minutes <= 60:
         parser.error("need --count >= 1, --interval >= 0, 1 <= --slot-minutes <= 60")
@@ -85,8 +88,11 @@ def run(args: argparse.Namespace) -> None:
     run_started = datetime.now(UTC)
     slot = slot_start(run_started, args.slot_minutes)
 
-    token = get_token()
-    result = collect(fetch_states, token, OKINAWA, args.count, args.interval)
+    token = TokenCache(get_token)
+    token()  # fail the run up front if OpenSky can't be reached at all
+    result = collect(
+        fetch_states, token, OKINAWA, args.count, args.interval, invalidate_token=token.invalidate
+    )
 
     raw_uri = sink.write(
         object_path("raw", slot, "jsonl.gz"),
