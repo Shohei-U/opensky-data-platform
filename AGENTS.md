@@ -34,7 +34,7 @@ OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuer
 - ADR 0003: GCP の IP は OpenSky に遮断される（Cloud Run・Cloud Shell とも接続不可、GitHub Actions は接続可）。取得は GitHub Actions の schedule で動かし、リポジトリを Public にする。GCS へは Workload Identity Federation で認証する
 - GCP: プロジェクト `opensky-data-platform`（無料トライアル中、期限 2026-12-29、アップグレードしない）、予算アラート 月500円（20/60/100%、クレジットを差し引かない）
 - GCS: `gs://opensky-data-platform-raw`（us-central1）。`raw/` と `meta/` は `dt=YYYY-MM-DD/hh=HH/<5分枠>.jsonl(.gz)`。試しの書き込みは `dev/` の下
-- #10 で作ったもの（残してある。実行しなければ費用はほぼ0）: Artifact Registry `opensky`（イメージ `ingest`、最新2つだけ残す）、Cloud Run Job `opensky-ingest`、Secret `opensky-credentials`、サービスアカウント `opensky-ingest`。手順は `docs/runbook/cloud-run-job.md`
+- #10 で作ったもの（残してある。実行しなければ費用はほぼ0）: Artifact Registry `opensky`（イメージ `ingest`、最新2つだけ残す。2026-10-05 に 90MB で無料枠 0.5GB 内）、Cloud Run Job `opensky-ingest`、Secret `opensky-credentials`、サービスアカウント `opensky-ingest`。手順は `docs/runbook/cloud-run-job.md`
 - ADR 0004: GitHub の schedule は動かなかったため、Cloud Scheduler `opensky-ingest-dispatch`（us-central1、毎時0分）が workflow_dispatch を呼ぶ。トークン（fine-grained、Actions: Read and write のみ）の期限は 2027-10-04 ごろ。手順は `docs/runbook/ingest-scheduler.md`
 - ADR 0005: GCS → BigQuery は Data Transfer Service の Cloud Storage 転送（1時間ごと、raw と meta の2設定）。raw テーブルは日付パーティション、有効期限30日（正本は GCS）
 - ADR 0006: GCS の Class A を無料枠内にするため、取得は毎時起動して30秒×108回（約54分）を1回で書く。トークンは25分で取り直す。DTS は毎時30分、転送元 `raw/dt={run_time-1h|"%Y-%m-%d"}/*/*`、MIRROR でその日のパーティションを入れ直す（Class A 約3,000回/月）
@@ -48,7 +48,7 @@ OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuer
 次にやること:
 
 - 第4週: dbt の staging（型付け・テスト・freshness）。#43 スケジュールされたクエリ
-- 本人: GitHub のトークン `opensky-ingest-dispatch` を作り直す（2026-10-05 に画面に出た）。Artifact Registry の容量が無料枠 0.5GB に収まっているか確認する
+- 本人: GitHub のトークン `opensky-ingest-dispatch` を作り直す（2026-10-05 に画面に出た）
 
 未解決:
 
