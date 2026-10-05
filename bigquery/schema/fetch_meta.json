@@ -1,0 +1,106 @@
+[
+  {
+    "name": "slot",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "実行の枠（例 2026-10-05T03:00+00:00）"
+  },
+  {
+    "name": "run_started_at",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE",
+    "description": "実行の開始時刻"
+  },
+  {
+    "name": "bbox",
+    "type": "RECORD",
+    "mode": "NULLABLE",
+    "description": "取得範囲",
+    "fields": [
+      {
+        "name": "lamin",
+        "type": "FLOAT64",
+        "mode": "NULLABLE",
+        "description": "南端"
+      },
+      {
+        "name": "lomin",
+        "type": "FLOAT64",
+        "mode": "NULLABLE",
+        "description": "西端"
+      },
+      {
+        "name": "lamax",
+        "type": "FLOAT64",
+        "mode": "NULLABLE",
+        "description": "北端"
+      },
+      {
+        "name": "lomax",
+        "type": "FLOAT64",
+        "mode": "NULLABLE",
+        "description": "東端"
+      }
+    ]
+  },
+  {
+    "name": "bbox_area_sq_deg",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "取得範囲の面積（平方度）"
+  },
+  {
+    "name": "output",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "この実行で書いた raw のファイル"
+  },
+  {
+    "name": "seq",
+    "type": "INT64",
+    "mode": "REQUIRED",
+    "description": "実行の中での取得の番号（0 から）"
+  },
+  {
+    "name": "fetched_at",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE",
+    "description": "取得した時刻"
+  },
+  {
+    "name": "attempts",
+    "type": "INT64",
+    "mode": "NULLABLE",
+    "description": "試行回数（リトライ込み。トークン取得に失敗したら 0）"
+  },
+  {
+    "name": "status_code",
+    "type": "INT64",
+    "mode": "NULLABLE",
+    "description": "HTTP ステータス（通信できなかったら null）"
+  },
+  {
+    "name": "api_time",
+    "type": "INT64",
+    "mode": "NULLABLE",
+    "description": "API が返したスナップショットの時刻（UNIX 秒）"
+  },
+  {
+    "name": "row_count",
+    "type": "INT64",
+    "mode": "NULLABLE",
+    "description": "取れた行数"
+  },
+  {
+    "name": "rate_limit_remaining",
+    "type": "INT64",
+    "mode": "NULLABLE",
+    "description": "残りのクレジット"
+  },
+  {
+    "name": "error",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "失敗したときのエラー（成功なら null）"
+  }
+]

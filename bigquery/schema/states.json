@@ -1,0 +1,122 @@
+[
+  {
+    "name": "icao24",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "機体の ICAO 24bit アドレス（16進）"
+  },
+  {
+    "name": "callsign",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "便名（前後の空白は除去済み）"
+  },
+  {
+    "name": "origin_country",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "機体の登録国"
+  },
+  {
+    "name": "time_position",
+    "type": "INT64",
+    "mode": "NULLABLE",
+    "description": "最後に位置を受信した時刻（UNIX 秒）"
+  },
+  {
+    "name": "last_contact",
+    "type": "INT64",
+    "mode": "NULLABLE",
+    "description": "最後に何かを受信した時刻（UNIX 秒）"
+  },
+  {
+    "name": "longitude",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "経度"
+  },
+  {
+    "name": "latitude",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "緯度"
+  },
+  {
+    "name": "baro_altitude",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "気圧高度（m）"
+  },
+  {
+    "name": "on_ground",
+    "type": "BOOL",
+    "mode": "NULLABLE",
+    "description": "地上にいるか"
+  },
+  {
+    "name": "velocity",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "対地速度（m/s）"
+  },
+  {
+    "name": "true_track",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "進行方向（北から時計回りの度）"
+  },
+  {
+    "name": "vertical_rate",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "上昇率（m/s、下降は負）"
+  },
+  {
+    "name": "sensors",
+    "type": "JSON",
+    "mode": "NULLABLE",
+    "description": "受信したセンサーの ID の配列（ふだんは null）"
+  },
+  {
+    "name": "geo_altitude",
+    "type": "FLOAT64",
+    "mode": "NULLABLE",
+    "description": "幾何高度（m）"
+  },
+  {
+    "name": "squawk",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "トランスポンダのコード"
+  },
+  {
+    "name": "spi",
+    "type": "BOOL",
+    "mode": "NULLABLE",
+    "description": "特別位置表示"
+  },
+  {
+    "name": "position_source",
+    "type": "INT64",
+    "mode": "NULLABLE",
+    "description": "位置の情報源（0=ADS-B, 1=ASTERIX, 2=MLAT, 3=FLARM）"
+  },
+  {
+    "name": "category",
+    "type": "INT64",
+    "mode": "NULLABLE",
+    "description": "機体の区分"
+  },
+  {
+    "name": "api_time",
+    "type": "INT64",
+    "mode": "NULLABLE",
+    "description": "API が返したスナップショットの時刻（UNIX 秒）"
+  },
+  {
+    "name": "fetched_at",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED",
+    "description": "取得した時刻（UTC）"
+  }
+]
