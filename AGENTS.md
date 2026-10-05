@@ -46,7 +46,7 @@ OpenSky Network の ADS-B データを沖縄周辺で取得し、GCS → BigQuer
 
 次にやること:
 
-- 第3週: ADR 0005 の実装。データセット・テーブル・スキーマを決め、DTS の転送設定を作る（gcloud / bq は本人が実行）
+- 第3週: `bash scripts/gcp/setup-bigquery.sh`（データセット `opensky_raw`、テーブル `states`・`fetch_meta`）→ Console で DTS を2つ作る → SQL で確認。手順は `docs/runbook/bigquery-dts.md`
 
 未解決:
 
