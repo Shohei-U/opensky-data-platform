@@ -1,8 +1,8 @@
 # BigQuery のテーブルと DTS の転送を作る（ADR 0005・0006）
 
 ```
-GCS  raw/dt=<日付>/*   ──DTS「opensky-states」 毎時30分・MIRROR──▶  opensky_raw.states$<日付>
-GCS  meta/dt=<日付>/*  ──DTS「opensky-fetch-meta」毎時30分・MIRROR──▶ opensky_raw.fetch_meta$<日付>
+GCS  raw/dt=<日付>/*/* ──DTS「opensky-states」 毎時30分・MIRROR──▶  opensky_raw.states$<日付>
+GCS  meta/dt=<日付>/*/*──DTS「opensky-fetch-meta」毎時30分・MIRROR──▶ opensky_raw.fetch_meta$<日付>
 ```
 
 - データセット `opensky_raw`（us-central1）、テーブル `states` と `fetch_meta`
@@ -37,7 +37,7 @@ bash scripts/gcp/setup-bigquery.sh
 | スケジュール オプション | 繰り返しの頻度「時間」、1時間ごと。開始時刻は次の「毎時30分」（例: 日本時間 13:30 ＝ UTC 04:30） | 同じ |
 | データセット | `opensky_raw` | 同じ |
 | 宛先テーブル | `states${run_time-1h\|"%Y%m%d"}` | `fetch_meta${run_time-1h\|"%Y%m%d"}` |
-| Cloud Storage の URI | `opensky-data-platform-raw/raw/dt={run_time-1h\|"%Y-%m-%d"}/*` | `opensky-data-platform-raw/meta/dt={run_time-1h\|"%Y-%m-%d"}/*` |
+| Cloud Storage の URI | `opensky-data-platform-raw/raw/dt={run_time-1h\|"%Y-%m-%d"}/*/*` | `opensky-data-platform-raw/meta/dt={run_time-1h\|"%Y-%m-%d"}/*/*` |
 | 書き込み設定 | **MIRROR** | 同じ |
 | ファイル形式 | JSON | 同じ |
 | 許可されている不良レコード数 | 0 | 同じ |
@@ -48,7 +48,11 @@ bash scripts/gcp/setup-bigquery.sh
 
 **保存**を押すと、権限の確認画面が出たら個人アカウントで許可する。
 
+**作成後は URI・宛先テーブル・書き込み設定を変えられない**（編集画面でグレーになる）。間違えたら転送を削除して作り直す。
+
 ### 値の意味
+
+- `/*/*`: 1つ目の `*` が `hh=00` などのフォルダ、2つ目がファイル名に当たる。`*` はフォルダの区切り（`/`）をまたがないので、`dt=…/*` だけでは `hh=…/` の中のファイルを見つけられない（2026-10-05 に、これで「成功・0行」になった。実行ログは「Detected that no changes will be made to the destination table」）
 
 - `{run_time-1h|"%Y-%m-%d"}`: 実行予定時刻の1時間前の日付。0時30分の実行は前日のフォルダを見るので、23時台のファイル（23時56分ごろに書かれる）を取りこぼさない
 - `$` の後ろの日付: その日のパーティションだけを入れ直す（パーティション デコレータ）
@@ -70,7 +74,9 @@ FROM `opensky-data-platform.opensky_raw.fetch_meta`
 WHERE _PARTITIONDATE = CURRENT_DATE();
 ```
 
-クエリを流す前に、エディタの右上に出る「このクエリを実行すると ○ MB が処理されます」を見る。1日分なら数十 MB で、月 1 TiB の無料枠に対して十分小さい。
+クエリを流す前に、エディタの下に出る「このクエリを実行すると ○ KB が処理されます」を見る。2026-10-05 の1日分（4,630行）は 72 KB だった。ただし課金は1クエリにつき最低 10 MB で数える（ジョブ情報の「課金されるバイト数」）。月 1 TiB の無料枠なら、10 MB のクエリを約10万回流せる。
+
+`rows` は予約語なので列の別名に使えない（`row_count` などにする）。
 
 ## 費用（ADR 0006）
 
